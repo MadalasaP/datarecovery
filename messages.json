@@ -1,0 +1,15 @@
+{
+  "Stream_err": " not a valid stream",
+  "Stream_add": "Successfully stream added",
+  "Stream_del": "Successfully stream deleted",
+  "Stream_not_exist": "Stream is not defined",
+  "Stream_no_del": "Stream is ",
+  "Chunk_add": "Successfully chunk added",
+  "Chunk_del": "Successfully chunk deleted",
+  "Chunk_no_del": "Referred key is not exists",
+  "Chunk_err": " not a valid chunk",
+  "persist": "Successfully Encoded and persisted",
+  "persist_err": "Stream persistent failed",
+  "file_err": "File not found",
+  "file_corrupt": "File corrupted"
+}
