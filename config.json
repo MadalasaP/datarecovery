@@ -1,4 +1,19 @@
 {
   "version": "1.0.0",
-  "metadata_backup_dir": "/home/agylstor/madi/backup_files/"
+  "revision": 12345,
+  "tsutil_name": "tsutil",
+  "data_protection": "raid",
+  "data_drive_name": "/dev/md/bryckdata",
+  "metadata_drive_name": "/dev/md/bryckmetadata",
+  "metadata_mount": "/tmp/bryckmetadata",
+  "metadata_file_name": "lc_meta.json",
+  "metadata_bsmb_file_name": "bsmb_meta.json",
+  "agylagent_lc_store": "/etc/agylstor/agylagent/lc0/store.json",
+  "agylagent_bsmb_store":"/etc/agylstor/agylagent/bsmb/store.json",
+  "bryck_drive_md": "md127" ,
+  "metadata_part_size": 32,
+  "bryck_drive_model": ["Linux"],
+  "drive_type": "NVME",
+  "backup_dir": "/backup_files/",
+  "tmp_dir" : "/home/madalasa/datarecovery/tmp/"
 }
