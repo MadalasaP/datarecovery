@@ -1,6 +1,7 @@
 # !/usr/bin/env python
 from json import dumps, loads, load
 from datetime import datetime
+from os.path import dirname
 import hashlib
 import base64
 import sys
@@ -9,7 +10,8 @@ import os
 class MetaStream:
     def __init__(self):
         self.stream = {}
-        with open("messages.json") as msg:
+        msg_file = dirname(__file__) + "/messages.json"
+        with open(msg_file) as msg:
             self.msg = load(msg)
 
     def create_stream(self,id,type,desc=None,filename=""):
@@ -41,8 +43,10 @@ class MetaStream:
 
     def persist(self,stream_type,enc_key=None):
         bytes = self.encode_stream(stream_type)
+        print(print(self.stream[stream_type]['filename']))
         try:
             f = open(self.stream[stream_type]['filename'], "wb")
+            print(self.stream[stream_type]['filename'])
             f.write(bytes)
             f.close()
             rc,msg = self.delete_stream(stream_type)
@@ -69,7 +73,7 @@ class MetaStream:
             return 0,self.stream[stream_type]
         return 1, self.msg['Stream_not_exist']
 
-    def dump_chunk(self,stream_type):
+    def dump_chunk(self,stream_type,drive_name):
         if len(self.stream)>0:
-            return 0,self.stream[stream_type]['data']
+            return 0,self.stream[stream_type]['data'][drive_name]
         return 1, self.msg['Stream_not_exist']
