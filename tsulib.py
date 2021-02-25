@@ -422,13 +422,7 @@ class Bryck(object):
                              self.config['backup_dir'],errdrives,key_file)
             if rc:
                 return 1, self.messages['bryck_mount_err_unlock_fail']
-            filesystem_unmount(self.config['metadata_mount'])
-            data_protection_stop(self.config['metadata_mount'])
-            data_protection_stop(self.config['data_drive_name'])
-            data_protection_start()
-            filesystem_mount(self.config['metadata_drive_name'],
-                             self.config['metadata_mount'],
-                             create=True)
+            self.re_mount()
 
         encrypt_drives = self.get_encrypt_drive_names(drives)
         errdrives = []
@@ -441,13 +435,7 @@ class Bryck(object):
         if len(errdrives)>0:
             partition_recovery(self.config['metadata_mount'] +
                                self.config['backup_dir'],errdrives)
-            filesystem_unmount(self.config['metadata_mount'])
-            data_protection_stop(self.config['metadata_mount'])
-            data_protection_stop(self.config['data_drive_name'])
-            data_protection_start()
-            filesystem_mount(self.config['metadata_drive_name'],
-                             self.config['metadata_mount'],
-                             create=True)
+            self.re_mount()
 
         #Data path exists
         debug("Checking data path exists")
@@ -706,3 +694,12 @@ class Bryck(object):
             drive information as set of key value parameters
         """
         return 0, {}
+
+    def re_mount(self):
+        filesystem_unmount(self.config['metadata_mount'])
+        data_protection_stop(self.config['metadata_mount'])
+        data_protection_stop(self.config['data_drive_name'])
+        data_protection_start()
+        filesystem_mount(self.config['metadata_drive_name'],
+                         self.config['metadata_mount'],
+                         create=True)
