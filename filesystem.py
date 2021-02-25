@@ -12,7 +12,7 @@ def filesystem_create(drive):
     debug("creating file system")
     time_to_wait = 500
     while not os.path.exists(drive):
-         time.sleep(0.5)
+         time.sleep(0.032)
          time_to_wait = time_to_wait - 1
          if(time_to_wait<0):
              return 1,"","Path doesn't exist"

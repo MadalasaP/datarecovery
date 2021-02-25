@@ -44,7 +44,7 @@ def data_protection_start():
     rc, err, out = run_cmd(cmd)
 
     if rc:
-        cmd = "sudo mdadm --examine --scan | sudo tee -a /etc/mdadm/mdadm.conf"
+        cmd = "sudo mdadm --examine --scan | sudo tee /etc/mdadm/mdadm.conf"
         return run_cmd(cmd)
 
     return rc,err,out

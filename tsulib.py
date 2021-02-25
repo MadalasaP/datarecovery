@@ -21,9 +21,6 @@ from time import tzname
 import subprocess
 import json
 
-from encstream import EncStream
-# from encstream import EncRecovery
-
 def get_config():
     """ Get the Bryck static configuration parameters"""
     config = dirname(__file__) + "/config.json"
@@ -214,17 +211,27 @@ class Bryck(object):
                        "Failed to open metadata file {}".format(metafile)
             dump(data, fptr)
             fptr.close()
+        if not os.path.exists(self.config['metadata_mount'] +
+                              self.config['backup_dir']):
+            os.mkdir(self.config['metadata_mount'] +
+                              self.config['backup_dir'])
 
-        # #Enc Stream Backup
-        # drives = self.get_drive_names()
-        # os.mkdir(self.config['metadata_mount'] + self.config['backup_dir'])
-        # file = self.config['metadata_mount'] + self.config['backup_dir'] \
-        #        + "encryption" + datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f") + ".bin"
-        # enc_stream = EncStream("123456", "encryption", desc=None, filename=file)
-        # for drive in drives:
-        #     rc, msg = enc_stream.backup_header(drive)
-        # rc, msg = enc_stream.persist("encryption")
-        # print(msg)
+        rc, msg = encrypt_backup(self.config['metadata_mount'] +
+                              self.config['backup_dir'], self.get_drive_names())
+        if rc:
+            debug(msg)
+
+        rc, msg = encrypt_backup(self.config['metadata_mount'] +
+                                 self.config['backup_dir'], self.get_drive_names())
+        if rc:
+            debug(msg)
+
+        drive_names = self.get_drive_names()
+        rc, msg = partition_backup(self.config['metadata_mount'] +
+                                 self.config['backup_dir'],
+                                   self.get_encrypt_drive_names(drive_names))
+        if rc:
+            debug(msg)
 
         if mount_meta:
             filesystem_unmount(self.config['metadata_mount'])
@@ -286,7 +293,7 @@ class Bryck(object):
             rc, out, msg = encrypt_setup_drives(drive_names, key_file)
             if rc:
                 return 1, self.messages['bryck_format_err_encryption'] + msg
-            rc, out, msg, errdrives = encrypt_unlock_drives(drive_names, key_file)
+            rc, out, msg,err_dives = encrypt_unlock_drives(drive_names, key_file)
             if rc:
                 return 1, self.messages['bryck_format_err_unlock'] + msg
             drive_names = self.get_encrypt_drive_names(drive_names)
@@ -359,47 +366,45 @@ class Bryck(object):
         """
         debug("Bryck Mounting key_file:{} mount_dir:{}".format(key_file, mount_dir))
 
-        if self.is_mounted():
-            return 0, self.messages['bryck_mount_duplicate']
-
-        # Bryck is inserted or not
+        #Bryck is inserted or not
         debug("Checking Bryck is inserted or not")
         if not self.drives:
             return 1, self.messages['bryck_not_found']
 
-        # Mount directory path provided or not
+        #Mount directory path provided or not
         debug("Checking mount directory is given")
         if mount_dir is None:
             return 1, self.messages['bryck_mount_err_nomount_dir']
 
-        # If provided checking it exists or not
+        #If provided checking it exists or not
         if self.path_exists(mount_dir):
-            return 1, self.messages['bryck_mount_err_mount_dir']
+            return 1,self.messages['bryck_mount_err_mount_dir']
 
-        # Check for encrption of drives
+        #Check for encrption of drives
         debug("Checking Bryck is encrypted or not")
         drives = self.get_drive_names()
-        if (key_file is None):  # Key file provided or not
+        if(key_file is None):  #Key file provided or not
             return 1, self.messages['bryck_mount_err_nokey_file']
 
         info("Bryck is encrypted and unlocking it")
-        lock, stdout, stderr, errdrives = encrypt_unlock_drives(drives, key_file)
-        if lock:
-            info("Found corrupted drives in bryck " + ','.join(errdrives))
-        # if lock:  # unlock fails
-        #     return 1, self.messages['bryck_mount_err_unlock_fail'] + stderr
-        info("Unlocked the drives")
+        lock, stdout, stderr, errdrives = encrypt_unlock_drives(drives,key_file)
+        if lock:    #unlock fails
+            debug("Error drives are : " + ','.join(errdrives))
+            # return 1, self.messages['bryck_mount_err_unlock_fail'] + stderr
+        else:
+            info("Unlocked the drive successfully")
 
-        # Reconstruct of metadata
+        #Reconstruct of metadata
         debug("Reconstruction of metadata")
-        rc, err, out = data_protection_start()
+        rc, err,out = data_protection_start()
 
         if rc:
             return 1, self.messages['bryck_mount_err_metadata']
         info("Metadata reconstructed succesfully")
 
-        # Metadata path exists
-        debug("Checking Metadata exists")
+        #Metadata path exists
+        debug("Checking Metadata exists : ")
+        debug(self.path_exists(self.config['metadata_drive_name']))
         if self.path_exists(self.config['metadata_drive_name']):
             return 1, self.messages['bryck_mount_err_metadata_path']
 
@@ -408,33 +413,57 @@ class Bryck(object):
                                         self.config['metadata_mount'],
                                         create=True)
         if rc:
-            return 1, self.messages['bryck_mount_err_metadata']
+            return 1,self.messages['bryck_mount_err_metadata']
         info("Mounted Meta data successfully")
 
-        # if lock:
-        #     enc_rec = EncRecovery()
-        #     suc_count, err_count, err_files, types = \
-        #         enc_rec.read_streams(self.config['metadata_mount']
-        #                              + self.config['backup_dir'])
-        #     if "encryption" in types:
-        #         for drive in errdrives:
-        #             info("Recovering : " + drive)
-        #             enc_rec.restore_header(drive)
+        if lock:
+            debug("Error drives are : " + ','.join(errdrives))
+            rc,msg = encrypt_recovery(self.config['metadata_mount'] +
+                             self.config['backup_dir'],errdrives,key_file)
+            if rc:
+                return 1, self.messages['bryck_mount_err_unlock_fail']
+            filesystem_unmount(self.config['metadata_mount'])
+            data_protection_stop(self.config['metadata_mount'])
+            data_protection_stop(self.config['data_drive_name'])
+            data_protection_start()
+            filesystem_mount(self.config['metadata_drive_name'],
+                             self.config['metadata_mount'],
+                             create=True)
 
-        # Data path exists
+        encrypt_drives = self.get_encrypt_drive_names(drives)
+        errdrives = []
+        for drive in encrypt_drives:
+            cmd = "ls " + drive + "p*"
+            rc,msg,err = run_cmd(cmd)
+            if rc:
+                errdrives.append(drive)
+
+        if len(errdrives)>0:
+            partition_recovery(self.config['metadata_mount'] +
+                               self.config['backup_dir'],errdrives)
+            filesystem_unmount(self.config['metadata_mount'])
+            data_protection_stop(self.config['metadata_mount'])
+            data_protection_stop(self.config['data_drive_name'])
+            data_protection_start()
+            filesystem_mount(self.config['metadata_drive_name'],
+                             self.config['metadata_mount'],
+                             create=True)
+
+        #Data path exists
         debug("Checking data path exists")
+        debug(self.path_exists(self.config['data_drive_name']))
         if self.path_exists(self.config['data_drive_name']):
-            return 1, self.messages['bryck_mount_err_data_path']
+            return 1,self.messages['bryck_mount_err_data_path']
 
         debug("Mounting data partition")
         rc, err, out = filesystem_mount(self.config['data_drive_name'],
                                         mount_dir,
                                         create=True)
         if rc:
-            return 1, self.messages['bryck_mount_err_data']
+            return 1,self.messages['bryck_mount_err_data']
         info("Mounted data partition successfully")
 
-        # Unmounting metadata
+        #Unmounting metadata
         """
         #Don't unmount in agylagent
         debug("Unmounting meta data")
@@ -443,7 +472,7 @@ class Bryck(object):
             return 1,self.messages['bryck_unmount_err_data']
         info("Unmounted metadata") """
 
-        # Bryck Mounted successfully
+        #Bryck Mounted successfully
         info("Mounting the Bryck " + mount_dir)
         return 0, self.messages['bryck_mount_success'] + mount_dir
 
@@ -520,7 +549,7 @@ class Bryck(object):
         info("Locking the Bryck")
         rc, out, err = encrypt_lock_drives(self.get_drive_names())
         if rc:
-            return 1, self.messages['bryck_eject_err_lock']
+            return 1, self.messages['bryck_eject_err_lock'] + err
 
         return 0, self.messages['bryck_eject_success']
 
@@ -537,6 +566,7 @@ class Bryck(object):
 
         if self.is_mounted():
             return 1, self.messages['bryck_erase_err_mounted']
+
 
         #ejecting the Bryck
         self.eject()

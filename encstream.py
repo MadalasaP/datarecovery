@@ -19,10 +19,6 @@ class EncStream(MetaStream):
         self.filename = filename
 
     def backup_header(self,drive_name):
-        if not os.path.exists(config['metadata_mount'] +
-                              config['backup_dir'] + "enc_drives/"):
-            os.mkdir(config['metadata_mount'] +
-                              config['backup_dir'] + "enc_drives/")
         file_name = config['metadata_mount'] + \
                     config['backup_dir'] + "enc_drives/" + \
                     datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f") + ".bin"
@@ -87,28 +83,28 @@ class EncRecovery(BryckRecovery):
             return 0, "Successfully recovered"
         return 1, "Failed to restore from recovery"
 
-if __name__ == "__main__":
-    # file = config['metadata_backup_dir'] + "encryption" + datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f") + ".bin"
-    # enc_stream = EncStream("1234","encryption",desc=None,filename=file)
-    # rc,msg = enc_stream.backup_header("/dev/nvme0n1")
-    # print(msg)
-    # rc, msg = enc_stream.backup_header("/dev/nvme0n2")
-    # print(msg)
-    # rc, msg = enc_stream.backup_header("/dev/nvme0n3")
-    # print(msg)
-    # if not rc:
-    #     rc,msg = enc_stream.persist("encryption")
-    #     print(msg)
-
-    enc_rec = EncRecovery()
-    suc_count, err_count, err_files, types = enc_rec.read_streams(config['metadata_backup_dir'])
-    print(err_files)
-    print(types)
-    print("encryption" in types)
-    if "encryption" in types:
-        rc, msg = enc_rec.restore_header("/dev/nvme0n1")
-        print(msg)
-        rc, msg = enc_rec.restore_header("/dev/nvme0n2")
-        print(msg)
-        rc,msg = enc_rec.restore_header("/dev/nvme0n3")
-        print(msg)
+# if __name__ == "__main__":
+#     # file = config['metadata_backup_dir'] + "encryption" + datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f") + ".bin"
+#     # enc_stream = EncStream("1234","encryption",desc=None,filename=file)
+#     # rc,msg = enc_stream.backup_header("/dev/nvme0n1")
+#     # print(msg)
+#     # rc, msg = enc_stream.backup_header("/dev/nvme0n2")
+#     # print(msg)
+#     # rc, msg = enc_stream.backup_header("/dev/nvme0n3")
+#     # print(msg)
+#     # if not rc:
+#     #     rc,msg = enc_stream.persist("encryption")
+#     #     print(msg)
+#
+#     enc_rec = EncRecovery()
+#     suc_count, err_count, err_files, types = enc_rec.read_streams(config['metadata_backup_dir'])
+#     print(err_files)
+#     print(types)
+#     print("encryption" in types)
+#     if "encryption" in types:
+#         rc, msg = enc_rec.restore_header("/dev/nvme0n1")
+#         print(msg)
+#         rc, msg = enc_rec.restore_header("/dev/nvme0n2")
+#         print(msg)
+#         rc,msg = enc_rec.restore_header("/dev/nvme0n3")
+#         print(msg)

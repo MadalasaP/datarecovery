@@ -39,7 +39,7 @@ class MetaStream:
         return 1, type + self.msg['Stream_err']
 
     def dump_stream(self,stream_type):
-        print(self.stream[stream_type])
+        return self.stream[stream_type]
 
     def persist(self,stream_type,enc_key=None):
         bytes = self.encode_stream(stream_type)

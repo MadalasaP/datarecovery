@@ -14,6 +14,5 @@
   "metadata_part_size": 32,
   "bryck_drive_model": ["Linux"],
   "drive_type": "NVME",
-  "backup_dir": "/backup_files/",
-  "tmp_dir" : "/home/madalasa/datarecovery/tmp/"
+  "backup_dir": "/backup_files/"
 }

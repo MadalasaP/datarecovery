@@ -1,5 +1,9 @@
 from logging import debug
 from libutils import run_cmd
+from partstream import PartStream
+from partstream import PartRecovery
+from datetime import datetime
+import os
 
 
 def partition_create_label(drive, label):
@@ -101,5 +105,50 @@ def partition_reset_drives(drives):
             err_msg += err
             out_msg += out
     return return_code, out_msg, err_msg
- 
 
+
+def partition_backup(directory, drives):
+    debug("Backup the partition drives:" + ','.join(drives))
+    outmsg = ""
+    return_code = 0
+    results = []
+
+    file = directory + "partition" + \
+           datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f") + ".bin"
+
+    if not os.path.exists(directory + "part_drives/"):
+        os.mkdir(directory + "part_drives/")
+
+    part_stream = PartStream("1234", "partition", desc=None, filename=file)
+
+    for drive in drives:
+        results.append(part_stream.backup_header(drive))
+
+    rc, msg = part_stream.persist("partition")
+    print(msg)
+    if rc:
+        return 1, msg
+    for result in results:
+        rc, out = result
+        if rc:
+            return_code = 1
+            outmsg += out
+    return return_code, outmsg
+
+
+def partition_recovery(directory, drives):
+    debug("Recovering the corrupted partition drives:" + ','.join(drives))
+    outmsg = ""
+    return_code = 0
+    results = []
+
+    part_rec = PartRecovery()
+    suc_count, err_count, err_files, types = part_rec.read_streams(directory)
+    if "partition" in types:
+        for drive in drives:
+            results.append(part_rec.restore_header(drive))
+        for result in results:
+            rc, out = result
+            if rc:
+                return_code = 1
+                outmsg += out

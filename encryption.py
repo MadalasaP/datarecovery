@@ -4,6 +4,10 @@ from os import path,cpu_count
 import multiprocessing as mp
 import concurrent.futures
 from itertools import repeat
+from datetime import datetime
+from encstream import EncStream
+from encstream import EncRecovery
+import os
 
 def parallel_exe(func_name,*values, num_threads = int(0.8*mp.cpu_count())):
     with concurrent.futures.ProcessPoolExecutor(max_workers = num_threads) as executor:
@@ -47,10 +51,10 @@ def encrypt_unlock_drive(drive, key_path):
           "  " + encrypt_drive + ""
     rc, out, err = run_cmd(cmd)
     if rc:
-        return rc, out, err, drive
+        return rc, out, err,drive
     cmd = "sudo partprobe"
     run_cmd(cmd)
-    return 0, "", "", None
+    return 0, "", "", ""
 
 
 def encrypt_lock_drive(drive):
@@ -205,15 +209,14 @@ def encrypt_change_key_drives(drives, old_key, new_key):
 
 
 def encrypt_unlock_drives(drives, keyfile, parallel=True):
-    # debug(" Unlocking the drive " + drives)
     debug("Unlocking the drives:" + ','.join(drives))
     errmsg = ""
     outmsg = ""
     return_code = 0
     results = []
-    errdrive = []
+    errdrives = []
 
-    if parallel:
+    if(parallel):
         values = drives,repeat(keyfile)
         results = parallel_exe(encrypt_unlock_drive,*values)
     else:
@@ -227,6 +230,58 @@ def encrypt_unlock_drives(drives, keyfile, parallel=True):
             return_code = 1
             outmsg += out
             if not drive is None:
-                errdrive.append(drive)
+                errdrives.append(drive)
+    return return_code, outmsg, errmsg,errdrives
 
-    return return_code, outmsg, errmsg, errdrive
+def encrypt_backup(directory, drives):
+    debug("Backup the encryption drives:" + ','.join(drives))
+    outmsg = ""
+    return_code = 0
+    results = []
+
+    file = directory + "encryption" + \
+           datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f") + ".bin"
+
+    if not os.path.exists(directory+ "enc_drives/"):
+        os.mkdir(directory + "enc_drives/")
+
+    enc_stream = EncStream("1234", "encryption", desc=None, filename=file)
+
+    for drive in drives:
+        results.append(enc_stream.backup_header(drive))
+
+    rc,msg = enc_stream.persist("encryption")
+    print(msg)
+    if rc:
+        return 1, msg
+    for result in results:
+        rc, out = result
+        if rc:
+            return_code = 1
+            outmsg += out
+    return return_code, outmsg
+
+def encrypt_recovery(directory,drives,key_file):
+    debug("Recovering the corrupted encryption drives:" + ','.join(drives))
+    outmsg = ""
+    return_code = 0
+    results = []
+
+    enc_rec = EncRecovery()
+    suc_count, err_count, err_files, types = enc_rec.read_streams(directory)
+    if "encryption" in types:
+        for drive in drives:
+                results.append(enc_rec.restore_header(drive))
+        for result in results:
+            rc, out = result
+            if rc:
+                return_code = 1
+                outmsg += out
+
+        lock, stdout, stderr, errdrives = encrypt_unlock_drives(drives, key_file)
+        if lock:  # unlock fails
+            debug("Failed devices"+ ','.join(drives))
+            debug(stderr)
+            return 1, stderr
+        return return_code, "Recovered successfully from corruption"
+    return 1, "Backup file is not exists"

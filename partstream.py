@@ -6,6 +6,7 @@ from libutils import run_cmd
 from datetime import datetime
 from json import load
 from os.path import dirname
+import os
 
 config = dirname(__file__) + "/config.json"
 with open(config) as cfg:
@@ -18,58 +19,27 @@ class PartStream(MetaStream):
         self.filename = filename
 
     def backup_header(self,drive_name):
-        cmd = "sudo sfdisk -d " + drive_name + " > back_up_filename"\
-                   + config['tmp_dir'] + "tmp.bin"
+        file_name = config['metadata_mount'] + \
+                    config['backup_dir'] + "part_drives/" + \
+                    datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f") + ".bin"
+        cmd = "sudo sfdisk -d " + drive_name + " > " + file_name
         print(cmd)
         rc, msg, err = run_cmd(cmd)
         if rc:
-            return 1, "Partition backup failed"
-        try:
-            f = open(config['tmp_dir'] + "tmp.bin", "r")
-            data = f.read()
-        except:
-            return  1, "ENC backup failed"
-        cmd = "sudo rm " + config['tmp_dir'] + "tmp.bin"
-        rc, msg, err = run_cmd(cmd)
-        return self.append_chunk('partition',drive_name,data)
+            return 1, "partition backup failed"
+        return self.append_chunk('partition', drive_name, file_name)
 
 class PartRecovery(BryckRecovery):
     def __init__(self):
         super().__init__()
 
-    def persist_tmp_file(self,header):
-        try:
-            f = open(config['tmp_dir'] + "tmp.bin", "w")
-            f.write(header)
-            f.close()
-            return 0,config['tmp_dir'] + "tmp.bin"
-        except:
-            return 1, "Fail_err"
-
     def restore_header(self,drive_name):
-        header = self.stream['partition']['data'][drive_name]
-        print(header)
-        rc,file_name = self.persist_tmp_file(header)
-        cmd = "sudo sfdisk " + drive_name + " < " + file_name
+        file_name = self.stream['partition']['data'][drive_name]
+        cmd = "sudo sfdisk --force " + drive_name + " < " + file_name
+        print(cmd)
         rc, msg, err = run_cmd(cmd)
-        print(msg)
+        cmd = "sudo partprobe"
+        run_cmd(cmd)
         if rc:
-            return 1, "ENC backup failed"
-        # cmd = " fdisk -l " + drive_name
-        if not rc:
-            return 0, "Successfully recovered"
-        return 1, "Failed to restore from recovery"
-
-if __name__ == "__main__":
-    file = config['metadata_backup_dir'] + "partition" + str(datetime.now()) + ".bin"
-    part_stream = PartStream("1234","partition",desc=None,filename=file)
-    rc,msg = part_stream.backup_header("/dev/mapper/cryptnvme0n1l")
-    print(msg)
-    if not rc:
-        rc,msg = part_stream.persist("partition")
-        print(msg)
-
-    part_rec = PartRecovery()
-    suc_count, err_count, err_files, types = part_rec.read_streams(config['metadata_backup_dir'])
-    print(err_files)
-    print(types)
+            return 1, "Failed to restore the partition drive"
+        return 0, "Successfully recovered"
