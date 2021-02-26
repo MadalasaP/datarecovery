@@ -1,6 +1,6 @@
 # !/usr/bin/env python
 from metastream import MetaStream
-
+from libutils import run_cmd
 from json import dumps, loads, load
 from json.decoder import JSONDecodeError
 from datetime import datetime
@@ -31,7 +31,6 @@ class BryckRecovery(MetaStream):
             return suc_count, err_count, err_files, types
 
         def get_type(self, file_name):
-            print(file_name)
             f = open(file_name)
             data_bytes = f.read()
             f.close()
@@ -60,3 +59,32 @@ class BryckRecovery(MetaStream):
                 return True
             return False
 
+class EncRecovery(BryckRecovery):
+    def __init__(self):
+        super().__init__()
+
+    def restore_header(self,stream_type,drive_name):
+        file_name = self.stream[stream_type]['data'][drive_name]
+        cmd = "sudo cryptsetup luksDump " + file_name
+        rc, msg, err = run_cmd(cmd)
+        if rc:
+            return 1, "ENC backup failed"
+        cmd = "yes | sudo cryptsetup luksHeaderRestore " + drive_name + " --header-backup-file " + file_name
+        rc, msg, err = run_cmd(cmd)
+        if not rc:
+            return 0, "Successfully recovered"
+        return 1, "Failed to restore from recovery"
+
+class PartRecovery(BryckRecovery):
+    def __init__(self):
+        super().__init__()
+
+    def restore_header(self,stream_type,drive_name):
+        file_name = self.stream[stream_type]['data'][drive_name]
+        cmd = "sudo sfdisk --force " + drive_name + " < " + file_name
+        rc, msg, err = run_cmd(cmd)
+        cmd = "sudo partprobe"
+        run_cmd(cmd)
+        if rc:
+            return 1, "Failed to restore the partition drive"
+        return 0, "Successfully recovered"

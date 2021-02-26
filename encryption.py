@@ -1,16 +1,22 @@
 from logging import debug
 from libutils import run_cmd
-from os import path,cpu_count
+from metastream import EncStream
+from bryckrecovery import EncRecovery
+
+from os import path,cpu_count,mkdir
 import multiprocessing as mp
 import concurrent.futures
 from itertools import repeat
 from datetime import datetime
-from encstream import EncStream
-from encstream import EncRecovery
-import os
+from os.path import dirname, exists
+from json import load
+
+config = dirname(__file__) + "/config.json"
+with open(config) as cfg:
+    config = load(cfg)
 
 def parallel_exe(func_name,*values, num_threads = int(0.8*mp.cpu_count())):
-    with concurrent.futures.ProcessPoolExecutor(max_workers = num_threads) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers = num_threads) as executor:
       results = executor.map(func_name, *values)
     return results
 
@@ -199,15 +205,6 @@ def encrypt_change_key_drives(drives, old_key, new_key):
             outmsg += out
     return return_code, outmsg, errmsg
 
-    # for drive in drives:
-    #     rc, out, err = encrypt_change_key_drive(drive, old_key, new_key)
-    #     if rc:
-    #         errmsg += err
-    #         return_code = 1
-    #     outmsg += out
-    # return return_code, outmsg, errmsg
-
-
 def encrypt_unlock_drives(drives, keyfile, parallel=True):
     debug("Unlocking the drives:" + ','.join(drives))
     errmsg = ""
@@ -238,20 +235,19 @@ def encrypt_backup(directory, drives):
     outmsg = ""
     return_code = 0
     results = []
+    stream = "estream.bin"
+    stream_type = "encryption"
+    enc_dir = directory + config['enc_dir']
 
-    file = directory + "encryption" + \
-           datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f") + ".bin"
+    if not exists(enc_dir):
+        mkdir(enc_dir)
 
-    if not os.path.exists(directory+ "enc_drives/"):
-        os.mkdir(directory + "enc_drives/")
-
-    enc_stream = EncStream("1234", "encryption", desc=None, filename=file)
-
+    file = directory + stream
+    enc_stream = EncStream(config['id'], stream_type, desc=None, filename=file)
     for drive in drives:
-        results.append(enc_stream.backup_header(drive))
+        results.append(enc_stream.backup_header(enc_dir,drive))
+    rc,msg = enc_stream.persist(stream_type)
 
-    rc,msg = enc_stream.persist("encryption")
-    print(msg)
     if rc:
         return 1, msg
     for result in results:
@@ -262,16 +258,17 @@ def encrypt_backup(directory, drives):
     return return_code, outmsg
 
 def encrypt_recovery(directory,drives,key_file):
-    debug("Recovering the corrupted encryption drives:" + ','.join(drives))
+    debug("Recovering the corrupted encryption drives ")
     outmsg = ""
     return_code = 0
     results = []
+    stream_type = "encryption"
 
     enc_rec = EncRecovery()
     suc_count, err_count, err_files, types = enc_rec.read_streams(directory)
-    if "encryption" in types:
+    if stream_type in types:
         for drive in drives:
-                results.append(enc_rec.restore_header(drive))
+                results.append(enc_rec.restore_header(stream_type,drive))
         for result in results:
             rc, out = result
             if rc:
@@ -280,7 +277,7 @@ def encrypt_recovery(directory,drives,key_file):
 
         lock, stdout, stderr, errdrives = encrypt_unlock_drives(drives, key_file)
         if lock:  # unlock fails
-            debug("Failed devices"+ ','.join(drives))
+            debug("Failed to recover : "+ ','.join(drives))
             debug(stderr)
             return 1, stderr
         return return_code, "Recovered successfully from corruption"

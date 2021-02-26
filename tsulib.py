@@ -203,32 +203,24 @@ class Bryck(object):
             with open(self.config['agylagent_bsmb_store'], 'r+') as bsmb_file:
                 data = load(bsmb_file)
 
-            metafile = self.config['metadata_mount'] + "/" + \
-                       self.config['metadata_bsmb_file_name']
+            metafile = self.config['metadata_mount'] + "/" + self.config['metadata_bsmb_file_name']
             fptr = open(metafile, "w")
             if not fptr:
                 return 1, self.messages['metadata_write_fail'] + \
                        "Failed to open metadata file {}".format(metafile)
             dump(data, fptr)
             fptr.close()
-        if not os.path.exists(self.config['metadata_mount'] +
-                              self.config['backup_dir']):
-            os.mkdir(self.config['metadata_mount'] +
-                              self.config['backup_dir'])
 
-        rc, msg = encrypt_backup(self.config['metadata_mount'] +
-                              self.config['backup_dir'], self.get_drive_names())
-        if rc:
-            debug(msg)
+        if not os.path.exists(self.config['metadata_mount'] + self.config['backup_dir']):
+            os.mkdir(self.config['metadata_mount'] + self.config['backup_dir'])
 
-        rc, msg = encrypt_backup(self.config['metadata_mount'] +
-                                 self.config['backup_dir'], self.get_drive_names())
+        rc, msg = encrypt_backup(self.config['metadata_mount'] + self.config['backup_dir']
+                                 ,self.get_drive_names())
         if rc:
             debug(msg)
 
         drive_names = self.get_drive_names()
-        rc, msg = partition_backup(self.config['metadata_mount'] +
-                                 self.config['backup_dir'],
+        rc, msg = partition_backup(self.config['metadata_mount'] + self.config['backup_dir'],
                                    self.get_encrypt_drive_names(drive_names))
         if rc:
             debug(msg)
@@ -371,6 +363,9 @@ class Bryck(object):
         if not self.drives:
             return 1, self.messages['bryck_not_found']
 
+        if self.is_mounted():
+            return 1, self.messages['bryck_mount_already']
+
         #Mount directory path provided or not
         debug("Checking mount directory is given")
         if mount_dir is None:
@@ -388,9 +383,11 @@ class Bryck(object):
 
         info("Bryck is encrypted and unlocking it")
         lock, stdout, stderr, errdrives = encrypt_unlock_drives(drives,key_file)
-        if lock:    #unlock fails
-            debug("Error drives are : " + ','.join(errdrives))
-            # return 1, self.messages['bryck_mount_err_unlock_fail'] + stderr
+        if lock:
+            if "Failed to open key file" in stderr or "No key available with this passphrase." in stderr:
+                return 1, self.messages['bryck_mount_err_unlock_fail'] + ": wrong key provided"
+
+            info("Found corrupted encrypted drives : " + ','.join(errdrives))
         else:
             info("Unlocked the drive successfully")
 
@@ -417,12 +414,12 @@ class Bryck(object):
         info("Mounted Meta data successfully")
 
         if lock:
-            debug("Error drives are : " + ','.join(errdrives))
             rc,msg = encrypt_recovery(self.config['metadata_mount'] +
                              self.config['backup_dir'],errdrives,key_file)
             if rc:
                 return 1, self.messages['bryck_mount_err_unlock_fail']
-            self.re_mount()
+            info("Recovered corrupted encrypted drives successfully")
+            self.redo_mount()
 
         encrypt_drives = self.get_encrypt_drive_names(drives)
         errdrives = []
@@ -433,9 +430,13 @@ class Bryck(object):
                 errdrives.append(drive)
 
         if len(errdrives)>0:
-            partition_recovery(self.config['metadata_mount'] +
+            info("Found corrupted partitions : " + ','.join(errdrives))
+            rc,msg = partition_recovery(self.config['metadata_mount'] +
                                self.config['backup_dir'],errdrives)
-            self.re_mount()
+            if rc:
+                return 1, self.messages['bryck_mount_err_partition_fail']
+            info("Recovered corrupted partition successfully")
+            self.redo_mount()
 
         #Data path exists
         debug("Checking data path exists")
@@ -695,7 +696,7 @@ class Bryck(object):
         """
         return 0, {}
 
-    def re_mount(self):
+    def redo_mount(self):
         filesystem_unmount(self.config['metadata_mount'])
         data_protection_stop(self.config['metadata_mount'])
         data_protection_stop(self.config['data_drive_name'])

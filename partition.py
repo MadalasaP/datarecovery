@@ -1,10 +1,15 @@
 from logging import debug
 from libutils import run_cmd
-from partstream import PartStream
-from partstream import PartRecovery
+from metastream import PartStream
+from bryckrecovery import PartRecovery
 from datetime import datetime
-import os
+from os.path import dirname, exists
+from json import load
+from os import mkdir
 
+config = dirname(__file__) + "/config.json"
+with open(config) as cfg:
+    config = load(cfg)
 
 def partition_create_label(drive, label):
     """Creates a partition label for a drive.
@@ -112,20 +117,20 @@ def partition_backup(directory, drives):
     outmsg = ""
     return_code = 0
     results = []
+    stream = "pstream.bin"
+    stream_type = "partition"
+    part_dir = directory + config['part_dir']
 
-    file = directory + "partition" + \
-           datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f") + ".bin"
+    if not exists(part_dir):
+        mkdir(part_dir)
 
-    if not os.path.exists(directory + "part_drives/"):
-        os.mkdir(directory + "part_drives/")
-
-    part_stream = PartStream("1234", "partition", desc=None, filename=file)
+    file = directory + stream
+    part_stream = PartStream(config['id'], stream_type, desc=None, filename=file)
 
     for drive in drives:
-        results.append(part_stream.backup_header(drive))
+        results.append(part_stream.backup_header(part_dir,drive))
 
-    rc, msg = part_stream.persist("partition")
-    print(msg)
+    rc, msg = part_stream.persist(stream_type)
     if rc:
         return 1, msg
     for result in results:
@@ -141,14 +146,17 @@ def partition_recovery(directory, drives):
     outmsg = ""
     return_code = 0
     results = []
+    stream_type = "partition"
 
     part_rec = PartRecovery()
     suc_count, err_count, err_files, types = part_rec.read_streams(directory)
-    if "partition" in types:
+    if stream_type in types:
         for drive in drives:
-            results.append(part_rec.restore_header(drive))
+            results.append(part_rec.restore_header(stream_type,drive))
         for result in results:
             rc, out = result
             if rc:
                 return_code = 1
                 outmsg += out
+        return return_code,outmsg
+    return 1, stream_type + " Backup file is not exist"

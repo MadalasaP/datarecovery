@@ -14,5 +14,8 @@
   "metadata_part_size": 32,
   "bryck_drive_model": ["Linux"],
   "drive_type": "NVME",
-  "backup_dir": "/backup_files/"
+  "backup_dir": "/metadata/",
+  "enc_dir": "enc/",
+  "part_dir": "part/",
+  "id": "1234"
 }

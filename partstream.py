@@ -21,7 +21,7 @@ class PartStream(MetaStream):
     def backup_header(self,drive_name):
         file_name = config['metadata_mount'] + \
                     config['backup_dir'] + "part_drives/" + \
-                    datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f") + ".bin"
+                    drive_name.split('/')[-1] + datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f") + ".bin"
         cmd = "sudo sfdisk -d " + drive_name + " > " + file_name
         print(cmd)
         rc, msg, err = run_cmd(cmd)

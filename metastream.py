@@ -2,10 +2,15 @@
 from json import dumps, loads, load
 from datetime import datetime
 from os.path import dirname
+from libutils import run_cmd
 import hashlib
 import base64
 import sys
 import os
+
+config = dirname(__file__) + "/config.json"
+with open(config) as cfg:
+    config = load(cfg)
 
 class MetaStream:
     def __init__(self):
@@ -43,10 +48,8 @@ class MetaStream:
 
     def persist(self,stream_type,enc_key=None):
         bytes = self.encode_stream(stream_type)
-        print(print(self.stream[stream_type]['filename']))
         try:
             f = open(self.stream[stream_type]['filename'], "wb")
-            print(self.stream[stream_type]['filename'])
             f.write(bytes)
             f.close()
             rc,msg = self.delete_stream(stream_type)
@@ -77,3 +80,31 @@ class MetaStream:
         if len(self.stream)>0:
             return 0,self.stream[stream_type]['data'][drive_name]
         return 1, self.msg['Stream_not_exist']
+
+class EncStream(MetaStream):
+    def __init__(self,id,type,desc=None,filename=""):
+        super().__init__()
+        self.create_stream(id=id,type=type,desc=desc,filename=filename)
+        self.filename = filename
+
+    def backup_header(self,path,drive_name):
+        file_name = path +drive_name.split('0n')[-1] + ".bin"
+        cmd = "sudo cryptsetup luksHeaderBackup " + drive_name + " --header-backup-file " + file_name
+        rc, msg, err = run_cmd(cmd)
+        if rc:
+            return 1, err
+        return self.append_chunk('encryption', drive_name, file_name)
+
+class PartStream(MetaStream):
+    def __init__(self,id,type,desc=None,filename=""):
+        super().__init__()
+        self.create_stream(id=id,type=type,desc=desc,filename=filename)
+        self.filename = filename
+
+    def backup_header(self,path,drive_name):
+        file_name = path +drive_name.split('0n')[-1] + ".bin"
+        cmd = "sudo sfdisk -d " + drive_name + " > " + file_name
+        rc, msg, err = run_cmd(cmd)
+        if rc:
+            return 1, "partition backup failed"
+        return self.append_chunk('partition', drive_name, file_name)

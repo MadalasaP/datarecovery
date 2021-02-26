@@ -17,7 +17,7 @@ import multiprocessing as mp
 
 
 def parallel_exe(func_name,*values, num_threads = 0.8*mp.cpu_count()):
-    with concurrent.futures.ProcessPoolExecutor(max_workers = num_threads) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers = num_threads) as executor:
       results = executor.map(func_name, *values)
     return results
 
